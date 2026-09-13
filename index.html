@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BitCrc · 校验和锻造炉</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --panel:#fff; --ink:#1f2530; --muted:#7a8494;
+    --line:#e2e6ee; --accent:#7a3df6; --accent2:#13b58a; --lock:#f3eeff;
+    --warn:#e0533d; --ok:#13b58a; --shadow:0 6px 24px rgba(31,37,48,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:28px 18px 60px}
+  header h1{font-size:24px;margin:0 0 4px;letter-spacing:.5px}
+  header p{margin:0;color:var(--muted);font-size:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px;margin-top:18px;box-shadow:var(--shadow)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  label{font-size:13px;color:var(--muted)}
+  textarea{flex:1;min-height:96px;width:100%;padding:10px 12px;border:1px solid var(--line);
+    border-radius:10px;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    outline:none;background:#fcfdff;color:var(--ink);resize:vertical}
+  textarea:focus{border-color:var(--accent)}
+  select{padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;
+    background:#fcfdff;color:var(--ink);outline:none}
+  button{border:0;background:var(--accent);color:#fff;padding:9px 15px;border-radius:10px;
+    font-size:13px;cursor:pointer;font-weight:600;transition:filter .15s}
+  button.ghost{background:#eef1f6;color:var(--ink)}
+  button:hover{filter:brightness(1.05)}
+  .result{display:flex;align-items:baseline;gap:12px;margin-top:14px;flex-wrap:wrap}
+  .result .hex{font:600 clamp(22px,6vw,30px)/1 ui-monospace,Menlo,Consolas,monospace;
+    color:var(--accent);letter-spacing:1px}
+  .result .meta{font-size:12px;color:var(--muted)}
+  .ref{margin-top:16px;border-top:1px dashed var(--line);padding-top:14px}
+  .ref h3{font-size:13px;margin:0 0 10px;color:var(--muted);font-weight:600;letter-spacing:.4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  td code{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  .pill.ok{background:#e3f7f0;color:var(--ok)}
+  .pill.bad{background:#fdeae5;color:var(--warn)}
+  .bytes{margin-top:12px;font:12px/1.7 ui-monospace,Menlo,Consolas,monospace;color:var(--muted);
+    word-break:break-all;max-height:96px;overflow:auto;background:#fafbff;border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  footer{margin-top:22px;font-size:12px;color:var(--muted);text-align:center}
+  code.k{background:#eef1f6;padding:1px 6px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>✦ BitCrc</h1>
+    <p>校验和锻造炉 — 实时计算 CRC-32 / CRC-16 / Adler-32 / FNV-1a，对照公开标准测试向量，单文件离线。</p>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <label>算法</label>
+      <select id="algo">
+        <option value="crc32">CRC-32 (IEEE 802.3)</option>
+        <option value="crc16">CRC-16 / CCITT-FALSE</option>
+        <option value="adler32">Adler-32</option>
+        <option value="fnv1a32">FNV-1a (32-bit)</option>
+      </select>
+      <button id="copy" class="ghost">复制结果</button>
+    </div>
+    <textarea id="inp" placeholder="输入任意文本，如：123456789">123456789</textarea>
+    <div class="bytes" id="bytes"></div>
+    <div class="result">
+      <span class="hex" id="out">—</span>
+      <span class="meta" id="meta"></span>
+    </div>
+    <div class="hint">输入即算。字节按 UTF-8 解释。CRC-32 支持「追加校验值 → 残差」自验证：<code class="k">msg + CRC(msg)</code> 再算 CRC-32 必得 <code class="k">0x2144DF1C</code>。</div>
+  </div>
+
+  <div class="card ref">
+    <h3>公开标准测试向量（实时自检）</h3>
+    <table>
+      <thead><tr><th>算法</th><th>输入</th><th>期望</th><th>实测</th><th>状态</th></tr></thead>
+      <tbody id="reftab"></tbody>
+    </table>
+    <div class="hint">"123456789" 是 CRC 族公认的黄金测试串；表格全绿即证明实现与标准一致。</div>
+  </div>
+
+  <footer>BitCrc · 单文件离线工具 · 引擎经 Node 无头验证 · MIT © 晨星</footer>
+</div>
+
+<script id="engine">
+(function(){
+  function strToBytes(s){
+    s = String(s); var bytes=[];
+    for (var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if (c<0x80) bytes.push(c);
+      else if (c<0x800) bytes.push(0xC0|(c>>6),0x80|(c&0x3F));
+      else if (c>=0xD800 && c<=0xDBFF){ var c2=s.charCodeAt(++i); var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);
+        bytes.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F)); }
+      else bytes.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));
+    }
+    return bytes;
+  }
+  var CRC32_TAB=(function(){ var t=new Array(256);
+    for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++){ c=(c&1)?(0xEDB88320 ^ (c>>>1)):(c>>>1); } t[n]=c>>>0; }
+    return t; })();
+  function crc32(bytes){
+    var crc=0xFFFFFFFF;
+    for (var i=0;i<bytes.length;i++) crc=CRC32_TAB[(crc ^ bytes[i]) & 0xFF] ^ (crc>>>8);
+    return (crc ^ 0xFFFFFFFF)>>>0;
+  }
+  function crc16(bytes){
+    var crc=0xFFFF;
+    for (var i=0;i<bytes.length;i++){ crc ^= (bytes[i]<<8);
+      for (var b=0;b<8;b++){ crc = (crc & 0x8000) ? ((crc<<1) ^ 0x1021) : (crc<<1); crc &= 0xFFFF; } }
+    return crc>>>0;
+  }
+  function adler32(bytes){
+    var MOD=65521, a=1, b=0;
+    for (var i=0;i<bytes.length;i++){ a=(a+bytes[i])%MOD; b=(b+a)%MOD; }
+    return ((b<<16)|a)>>>0;
+  }
+  function fnv1a32(bytes){
+    var h=0x811C9DC5>>>0;
+    for (var i=0;i<bytes.length;i++){ h ^= bytes[i]; h = Math.imul(h, 0x01000193); }
+    return h>>>0;
+  }
+  globalThis.CRC={
+    strToBytes:strToBytes, crc32:crc32, crc16:crc16, adler32:adler32, fnv1a32:fnv1a32,
+    CRC32_CHECK:0x2144DF1C
+  };
+})();
+</script>
+
+<script id="ui">
+if (typeof document === "undefined") return;
+(function(){
+  var C=globalThis.CRC;
+  var inp=document.getElementById('inp'), algo=document.getElementById('algo'),
+      out=document.getElementById('out'), meta=document.getElementById('meta'),
+      bytesEl=document.getElementById('bytes'), reftab=document.getElementById('reftab'),
+      copyBtn=document.getElementById('copy');
+  function hex(n,w){ var s=n.toString(16).toUpperCase(); while(s.length<w) s='0'+s; return '0x'+s; }
+  function compute(){
+    var b=C.strToBytes(inp.value);
+    var fn = algo.value==='crc32'?C.crc32 : algo.value==='crc16'?C.crc16 : algo.value==='adler32'?C.adler32 : C.fnv1a32;
+    var r=fn(b);
+    out.textContent=hex(r, algo.value==='crc16'?4:8);
+    meta.textContent=algo.value.toUpperCase()+' · '+b.length+' 字节 · '+(r>>>0).toString(10)+' (dec)';
+    bytesEl.textContent='UTF-8: ['+b.map(function(x){return x.toString(16).padStart(2,'0');}).join(' ')+']';
+  }
+  function selfTest(){
+    var rows=[
+      ['CRC-32','123456789',0xCBF43926,C.crc32(C.strToBytes('123456789')),8],
+      ['CRC-16/CCITT','123456789',0x29B1,C.crc16(C.strToBytes('123456789')),4],
+      ['Adler-32','123456789',0x091E01DE,C.adler32(C.strToBytes('123456789')),8],
+      ['FNV-1a','123456789',0xBB86B11C,C.fnv1a32(C.strToBytes('123456789')),8]
+    ];
+    var html='';
+    rows.forEach(function(r){
+      var ok = (r[3]>>>0)===(r[2]>>>0);
+      html+='<tr><td><code>'+r[0]+'</code></td><td><code>'+r[1]+'</code></td><td><code>'+hex(r[2],r[4])+
+            '</code></td><td><code>'+hex(r[3],r[4])+'</code></td><td><span class="pill '+(ok?'ok':'bad')+'">'+(ok?'✓ 一致':'✗')+'</span></td></tr>';
+    });
+    reftab.innerHTML=html;
+  }
+  inp.addEventListener('input',compute);
+  algo.addEventListener('change',compute);
+  copyBtn.addEventListener('click',function(){
+    var t=out.textContent;
+    if(navigator.clipboard) navigator.clipboard.writeText(t);
+    copyBtn.textContent='已复制'; setTimeout(function(){copyBtn.textContent='复制结果';},1200);
+  });
+  compute(); selfTest();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# verification artifacts (not part of the shipped tool)
+_*.log
+_probe.txt
+_*.json
