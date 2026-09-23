@@ -1,5 +1,12 @@
 # ✦ BitCrc · 校验和锻造炉
 
+<p align="center">
+  <a href="https://github.com/CJX0712/bitcrc/actions/workflows/ci.yml"><img src="https://github.com/CJX0712/bitcrc/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/CJX0712/bitcrc/releases"><img src="https://img.shields.io/github/v/release/CJX0712/bitcrc?sort=semver" alt="release"></a>
+  <a href="https://github.com/CJX0712/bitcrc/blob/main/LICENSE"><img src="https://img.shields.io/github/license/CJX0712/bitcrc" alt="license"></a>
+  <img src="https://img.shields.io/badge/author-%E6%99%A8%E6%98%9F-1f6feb" alt="author">
+</p>
+
 一个**单文件、零依赖、可离线运行**的校验和工具：实时计算四种常见校验/哈希算法，
 并对照**公开标准测试向量**自检，附带 CRC-32「追加校验值 → 残差」闭环演示。
 
